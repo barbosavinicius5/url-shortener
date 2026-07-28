@@ -11,4 +11,5 @@ class Link(Base):
     id = Column(Integer, primary_key=True)
     codigo = Column(String(10), unique=True, nullable=False, index=True)
     url_original = Column(Text, nullable=False)
+    cliques = Column(Integer, nullable=False, default=0, server_default="0")
     criado_em = Column(DateTime, default=datetime.utcnow)

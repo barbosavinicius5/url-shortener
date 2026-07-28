@@ -1,31 +1,10 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
 
-from app.database import Base, get_db
 from app.events import clear_events, get_events
 from app.main import app
-
-# ──────────────────────────────────────────────────────────────────────────────
-# Banco de dados em arquivo dedicado para testes (evita conflito com shortener.db)
-# ──────────────────────────────────────────────────────────────────────────────
-SQLALCHEMY_TEST_URL = "sqlite:///./test.db"
-engine = create_engine(SQLALCHEMY_TEST_URL, connect_args={"check_same_thread": False})
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-
-Base.metadata.create_all(bind=engine)
-
-
-def override_get_db():
-    db = TestingSessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-
-app.dependency_overrides[get_db] = override_get_db
+from app.models import Link
+from tests.conftest import TestSessionFactory
 
 client = TestClient(app)
 
@@ -35,9 +14,18 @@ client = TestClient(app)
 # ──────────────────────────────────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)
-def clean_events():
+def limpar_estado():
+    db = TestSessionFactory()
+    db.query(Link).delete()
+    db.commit()
+    db.close()
     clear_events()
     yield
+    db = TestSessionFactory()
+    db.query(Link).delete()
+    db.commit()
+    db.close()
+    clear_events()
 
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -51,7 +39,6 @@ def test_cenario_a_url_valida_retorna_codigo_unico():
     assert "codigo" in data
     assert data["url_original"] == "https://exemplo.com/caminho/longo"
     assert len(data["codigo"]) > 0
-    # Verifica evento link_encurtado
     events = get_events()
     link_events = [e for e in events if e["event"] == "link_encurtado"]
     assert len(link_events) >= 1
@@ -61,7 +48,6 @@ def test_cenario_a_url_valida_retorna_codigo_unico():
 
 
 def test_cenario_a_persistencia_mapeamento():
-    # Faz dois pedidos com URLs diferentes — cada um deve ter código diferente
     r1 = client.post("/shorten", json={"url": "https://a.com"})
     r2 = client.post("/shorten", json={"url": "https://b.com"})
     assert r1.status_code == 201
@@ -77,11 +63,9 @@ def test_cenario_b_esquema_invalido():
     response = client.post("/shorten", json={"url": "ftp://exemplo.com/arquivo"})
     assert response.status_code == 422
     data = response.json()
-    # FastAPI envolve em "detail" quando HTTPException é lançada
     detail = data.get("detail", data)
     assert detail["erro"] == "validacao"
     assert detail["motivo"] == "esquema_invalido"
-    # Verifica evento url_rejeitada
     events = get_events()
     rejeitadas = [e for e in events if e["event"] == "url_rejeitada"]
     assert any(e["motivo"] == "esquema_invalido" for e in rejeitadas)
@@ -131,7 +115,7 @@ def test_cenario_d_unicidade_codigos():
         r = client.post("/shorten", json={"url": url})
         assert r.status_code == 201
         codigos.add(r.json()["codigo"])
-    assert len(codigos) == 20  # zero colisões
+    assert len(codigos) == 20  # zero colisoes
 
 
 def test_cenario_d_imutabilidade_mapeamento():
@@ -139,12 +123,8 @@ def test_cenario_d_imutabilidade_mapeamento():
     assert r.status_code == 201
     codigo = r.json()["codigo"]
     url_original = r.json()["url_original"]
-    # Consulta diretamente no banco para verificar persistência
-    from app.database import SessionLocal
-    from app.models import Link
 
-    # Usa o banco de testes (override já configurado no TestingSessionLocal)
-    db = TestingSessionLocal()
+    db = TestSessionFactory()
     try:
         link = db.query(Link).filter(Link.codigo == codigo).first()
     finally:
