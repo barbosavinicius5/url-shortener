@@ -1,6 +1,7 @@
 """FastAPI application — URL Shortener."""
 
 import os
+import re
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
@@ -13,6 +14,9 @@ app = FastAPI(title="URL Shortener")
 # Base URL used to build the returned short_url.
 # Override with the BASE_URL environment variable in production.
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+
+# Regex that defines a valid short code: 1–32 alphanumeric chars.
+_CODIGO_RE = re.compile(r"^[A-Za-z0-9]{1,32}$")
 
 
 # ---------------------------------------------------------------------------
@@ -28,6 +32,21 @@ class ShortenResponse(BaseModel):
     short_url: str
 
 
+class DadoAcesso(BaseModel):
+    acessado_em: str  # ISO-8601 string (UTC)
+
+
+class MetricasResponse(BaseModel):
+    codigo: str
+    total_cliques: int
+    dados_acesso: list[DadoAcesso]
+
+
+class ErroResponse(BaseModel):
+    erro: str
+    mensagem: str
+
+
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
@@ -40,7 +59,7 @@ def shorten(body: ShortenRequest) -> ShortenResponse:
 
     - Validates that the URL starts with ``http://`` or ``https://``.
     - Generates a unique short code via the code-generation layer.
-    - Persists the mapping and returns ``{ code, short_url }``.
+    - Persists the mapping and returns ``{ code, short_url }``.\
     """
     if not (body.url.startswith("http://") or body.url.startswith("https://")):
         raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
@@ -50,6 +69,52 @@ def shorten(body: ShortenRequest) -> ShortenResponse:
 
     short_url = f"{BASE_URL.rstrip('/')}/{code}"
     return ShortenResponse(code=code, short_url=short_url)
+
+
+@app.get(
+    "/metricas/{codigo}",
+    response_model=MetricasResponse,
+    status_code=200,
+    responses={
+        400: {"model": ErroResponse},
+        404: {"model": ErroResponse},
+    },
+)
+def consultar_metricas(codigo: str) -> MetricasResponse:
+    """Retorna as métricas de acesso de um código curto (somente-leitura).
+
+    - **200** com ``total_cliques`` e ``dados_acesso`` quando o código existe.
+    - **404** quando o código não existe no repositório.
+    - **400** quando o ``codigo`` está vazio ou fora do padrão alfanumérico.
+    - Operação somente-leitura: não gera novos eventos de analytics.
+    """
+    # Cenário D — código malformado/vazio → 400
+    if not codigo or not _CODIGO_RE.match(codigo):
+        raise HTTPException(
+            status_code=400,
+            detail={"erro": "codigo_invalido", "mensagem": "Informe um código válido."},
+        )
+
+    # Cenário C — código inexistente → 404
+    if not storage.code_exists(codigo):
+        raise HTTPException(
+            status_code=404,
+            detail={"erro": "codigo_nao_encontrado", "mensagem": "Código não encontrado."},
+        )
+
+    # Cenários A / B — código existente (com ou sem acessos) → 200
+    events = storage.get_events(codigo)  # always a list when code exists
+    total_cliques = len(events)
+    dados_acesso = [
+        DadoAcesso(acessado_em=ev["acessado_em"].strftime("%Y-%m-%dT%H:%M:%SZ"))
+        for ev in events
+    ]
+
+    return MetricasResponse(
+        codigo=codigo,
+        total_cliques=total_cliques,
+        dados_acesso=dados_acesso,
+    )
 
 
 @app.get("/{code}", status_code=302)
