@@ -2,10 +2,12 @@
 
 import logging
 import os
+from pathlib import Path
 from typing import Optional
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
-from fastapi.responses import RedirectResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
 from shortener import codegen, storage
@@ -18,6 +20,10 @@ app = FastAPI(title="URL Shortener")
 # Base URL used to build the returned short_url.
 # Override with the BASE_URL environment variable in production.
 BASE_URL = os.getenv("BASE_URL", "http://localhost:8000")
+
+# Jinja2 templates directory (relative to this file).
+_TEMPLATES_DIR = Path(__file__).parent / "templates"
+templates = Jinja2Templates(directory=str(_TEMPLATES_DIR))
 
 
 # ---------------------------------------------------------------------------
@@ -35,6 +41,11 @@ class ShortenResponse(BaseModel):
 
 class CliquesResponse(BaseModel):
     codigo: str
+    cliques: int
+
+
+class StatsResponse(BaseModel):
+    codigo_curto: str
     cliques: int
 
 
@@ -72,7 +83,7 @@ def shorten(body: ShortenRequest) -> ShortenResponse:
         raise HTTPException(status_code=400, detail="URL must start with http:// or https://")
 
     code = codegen.generate_code()
-    storage.save(code, body.url)
+    storage.save(code, url=body.url)
 
     short_url = f"{BASE_URL.rstrip('/')}/{code}"
     return ShortenResponse(code=code, short_url=short_url)
@@ -87,6 +98,43 @@ def cliques(codigo: str) -> CliquesResponse:
     """
     total = analytics_service.contar_cliques(codigo)
     return CliquesResponse(codigo=codigo, cliques=total)
+
+
+# ---------------------------------------------------------------------------
+# Frontend — tela de consulta de contagem de cliques (t002-fe)
+# ---------------------------------------------------------------------------
+
+@app.get("/stats", response_class=HTMLResponse)
+def stats_ui(request: Request) -> HTMLResponse:
+    """Serve a tela HTML de consulta da contagem de cliques."""
+    return templates.TemplateResponse(request, "stats.html")
+
+
+@app.get("/{codigo_curto}/stats", response_model=StatsResponse)
+def stats(codigo_curto: str) -> StatsResponse:
+    """Retorna a contagem de cliques para um codigo_curto.
+
+    - **200** com ``{ codigo_curto, cliques }`` quando o código existe.
+    - **404** quando o código não está registrado.
+    - **422** (FastAPI automático) se codigo_curto for vazio/inválido.
+    """
+    codigo_curto = codigo_curto.strip()
+    if not codigo_curto:
+        raise HTTPException(
+            status_code=422,
+            detail="codigo_curto nao pode ser vazio.",
+        )
+
+    # Verifica existência no storage antes de consultar analytics
+    url = storage.get(codigo_curto)
+    if url is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Código '{codigo_curto}' não encontrado.",
+        )
+
+    cliques_total = analytics_service.contar_cliques(codigo_curto)
+    return StatsResponse(codigo_curto=codigo_curto, cliques=cliques_total)
 
 
 @app.get("/{code}", status_code=302)

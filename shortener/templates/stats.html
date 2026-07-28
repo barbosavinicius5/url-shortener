@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contagem de Cliques — URL Shortener</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a2e;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 3rem 1rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+      padding: 2rem 2.5rem;
+      width: 100%;
+      max-width: 520px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+      color: #0d1b2a;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 1.8rem;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 0.6rem;
+    }
+
+    #campo-codigo {
+      flex: 1;
+      padding: 0.6rem 0.9rem;
+      border: 2px solid #d1d9e6;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color .2s;
+      outline: none;
+    }
+
+    #campo-codigo:focus { border-color: #4f6ef7; }
+    #campo-codigo.erro  { border-color: #e53e3e; }
+
+    #btn-consultar {
+      padding: 0.6rem 1.2rem;
+      background: #4f6ef7;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .2s, opacity .2s;
+    }
+
+    #btn-consultar:hover:not(:disabled) { background: #3b57e0; }
+    #btn-consultar:disabled { opacity: .55; cursor: not-allowed; }
+
+    /* Indicador de carregamento */
+    #loading-indicator {
+      margin-top: 1.2rem;
+      font-size: 0.9rem;
+      color: #555;
+      display: none;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid #d1d9e6;
+      border-top-color: #4f6ef7;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      flex-shrink: 0;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Área de resultado */
+    #result-box {
+      margin-top: 1.4rem;
+      padding: 1.2rem;
+      border-radius: 8px;
+      background: #eef2ff;
+      border: 1px solid #c7d4fb;
+      display: none;
+    }
+
+    #result-box .result-label {
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #4f6ef7;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.4rem;
+    }
+
+    #result-box .result-codigo {
+      font-size: 1rem;
+      color: #333;
+      margin-bottom: 0.3rem;
+    }
+
+    #result-box .result-cliques {
+      font-size: 2rem;
+      font-weight: 700;
+      color: #0d1b2a;
+      font-family: monospace;
+    }
+
+    /* Caixa de erro de validação */
+    #error-validacao {
+      margin-top: 0.4rem;
+      font-size: 0.85rem;
+      color: #e53e3e;
+      min-height: 1.1em;
+      display: none;
+    }
+
+    /* Caixa de erro de não encontrado */
+    #error-nao-encontrado {
+      margin-top: 1.4rem;
+      padding: 0.85rem 1rem;
+      border-radius: 8px;
+      background: #fff5f5;
+      border: 1px solid #f5c6c6;
+      color: #c0392b;
+      font-size: 0.9rem;
+      display: none;
+    }
+
+    /* Caixa de erro genérico */
+    #error-generico {
+      margin-top: 1.4rem;
+      padding: 0.85rem 1rem;
+      border-radius: 8px;
+      background: #fff8f0;
+      border: 1px solid #f5d6a6;
+      color: #9a5a00;
+      font-size: 0.9rem;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Contagem de Cliques</h1>
+    <p class="subtitle">Informe o código curto para consultar a contagem de cliques.</p>
+
+    <form id="stats-form" novalidate>
+      <div class="input-row">
+        <input
+          id="campo-codigo"
+          type="text"
+          name="codigo_curto"
+          placeholder="ex.: abc123"
+          autocomplete="off"
+          aria-label="Código curto"
+        />
+        <button type="submit" id="btn-consultar">Consultar</button>
+      </div>
+    </form>
+
+    <div id="error-validacao" role="alert" aria-live="polite">
+      Código inválido: informe um código não vazio.
+    </div>
+
+    <div id="loading-indicator" role="status" aria-live="polite">
+      <div class="spinner"></div>
+      <span>Consultando...</span>
+    </div>
+
+    <div id="result-box" aria-live="polite">
+      <div class="result-label">Cliques</div>
+      <div class="result-codigo" id="result-codigo-label"></div>
+      <div class="result-cliques" id="result-cliques"></div>
+    </div>
+
+    <div id="error-nao-encontrado" role="alert" aria-live="polite">
+      Código não encontrado.
+    </div>
+
+    <div id="error-generico" role="alert" aria-live="polite">
+      Ocorreu um erro inesperado. Tente novamente.
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var form             = document.getElementById('stats-form');
+      var campocodigo      = document.getElementById('campo-codigo');
+      var btnConsultar     = document.getElementById('btn-consultar');
+      var loading          = document.getElementById('loading-indicator');
+      var resultBox        = document.getElementById('result-box');
+      var resultcodigoLabel = document.getElementById('result-codigo-label');
+      var resultCliques    = document.getElementById('result-cliques');
+      var errorValidacao   = document.getElementById('error-validacao');
+      var errorNaoEncontrado = document.getElementById('error-nao-encontrado');
+      var errorGenerico    = document.getElementById('error-generico');
+
+      function resetFeedback() {
+        resultBox.style.display        = 'none';
+        errorValidacao.style.display   = 'none';
+        errorNaoEncontrado.style.display = 'none';
+        errorGenerico.style.display    = 'none';
+        loading.style.display          = 'none';
+        campocodigo.classList.remove('erro');
+        resultcodigoLabel.textContent  = '';
+        resultCliques.textContent      = '';
+      }
+
+      function setLoading(active) {
+        btnConsultar.disabled  = active;
+        loading.style.display  = active ? 'flex' : 'none';
+      }
+
+      function showResult(data) {
+        resultcodigoLabel.textContent = 'Código: ' + data.codigo_curto;
+        resultCliques.textContent     = data.cliques;
+        resultBox.style.display       = 'block';
+      }
+
+      function showValidacaoError() {
+        campocodigo.classList.add('erro');
+        errorValidacao.style.display = 'block';
+        campocodigo.focus();
+      }
+
+      function showNaoEncontrado() {
+        errorNaoEncontrado.style.display = 'block';
+      }
+
+      function showGenerico() {
+        errorGenerico.style.display = 'block';
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        resetFeedback();
+
+        var codigo = campocodigo.value.trim();
+
+        // Validação client-side: código não pode ser vazio
+        if (!codigo) {
+          showValidacaoError();
+          return;
+        }
+
+        setLoading(true);
+
+        fetch('/' + encodeURIComponent(codigo) + '/stats', {
+          method: 'GET',
+          headers: { 'Accept': 'application/json' },
+        })
+        .then(function (response) {
+          return response.json().then(function (data) {
+            return { status: response.status, data: data };
+          });
+        })
+        .then(function (result) {
+          if (result.status === 200) {
+            showResult(result.data);
+          } else if (result.status === 404) {
+            showNaoEncontrado();
+          } else if (result.status === 422) {
+            showValidacaoError();
+          } else {
+            showGenerico();
+          }
+        })
+        .catch(function () {
+          showGenerico();
+        })
+        .finally(function () {
+          setLoading(false);
+        });
+      });
+    }());
+  </script>
+</body>
+</html>
