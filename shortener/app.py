@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
-from shortener import codegen, storage
+from shortener import analytics, codegen, storage
 
 app = FastAPI(title="URL Shortener")
 
@@ -56,13 +56,31 @@ def shorten(body: ShortenRequest) -> ShortenResponse:
 def redirect(code: str) -> RedirectResponse:
     """Resolve a short code and redirect to the original URL.
 
-    - Returns **302** with ``Location`` header set to the original URL.
-    - Returns **404** if *code* is not found.
+    **Behaviour:**
+
+    - Validates that *code* matches the expected format (alphanumeric, 6 chars).
+      Returns **404** immediately if the format is invalid — no storage lookup.
+    - Returns **302** with ``Location`` header set to the original URL when found.
+    - Returns **404** when *code* is not present in the mapping.
     - Increments ``access_count`` on every successful resolution.
+    - Emits analytics events (``link_acessado`` / ``link_nao_encontrado``) in a
+      fire-and-forget fashion so that analytics failures never block a redirect.
     """
-    url = storage.get(code)
-    if url is None:
+    # Cenário C — formato inválido: falha rápida sem consultar o storage.
+    if not codegen.is_valid_code(code):
+        analytics.on_link_nao_encontrado(code)
         raise HTTPException(status_code=404, detail="Short code not found")
 
+    # Cenários A / B — consulta o mapeamento.
+    url = storage.get(code)
+
+    if url is None:
+        # Cenário B — código inexistente.
+        analytics.on_link_nao_encontrado(code)
+        raise HTTPException(status_code=404, detail="Short code not found")
+
+    # Cenário A — código existente: incrementa contador e redireciona.
     storage.increment_access_count(code)
+    analytics.on_link_acessado(code, url)
+
     return RedirectResponse(url=url, status_code=302)
