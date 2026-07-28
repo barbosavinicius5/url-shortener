@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Encurtador de URL</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 12px rgba(0,0,0,.12);
+      padding: 2rem;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    h1 {
+      margin: 0 0 1.5rem;
+      font-size: 1.4rem;
+      color: #111;
+    }
+
+    label {
+      display: block;
+      font-size: .875rem;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: .4rem;
+    }
+
+    .input-row {
+      display: flex;
+      gap: .5rem;
+    }
+
+    input[type="url"] {
+      flex: 1;
+      padding: .55rem .75rem;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: .95rem;
+      outline: none;
+      transition: border-color .15s;
+    }
+
+    input[type="url"]:focus { border-color: #4f6ef7; }
+
+    button[type="submit"] {
+      padding: .55rem 1.1rem;
+      background: #4f6ef7;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: .95rem;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background .15s, opacity .15s;
+    }
+
+    button[type="submit"]:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+
+    .result-box {
+      margin-top: 1.25rem;
+      padding: 1rem;
+      border-radius: 6px;
+      background: #eef2ff;
+      border: 1px solid #c7d4fb;
+      display: none;
+    }
+
+    .result-box .result-label {
+      font-size: .75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: #4f6ef7;
+      letter-spacing: .04em;
+      margin-bottom: .35rem;
+    }
+
+    .result-box .result-code {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #111;
+      font-family: monospace;
+      margin-bottom: .5rem;
+      word-break: break-all;
+    }
+
+    .result-box .result-short-url {
+      font-size: .875rem;
+      color: #333;
+      word-break: break-all;
+    }
+
+    .result-box .result-short-url a {
+      color: #4f6ef7;
+    }
+
+    .error-box {
+      margin-top: 1.25rem;
+      padding: .75rem 1rem;
+      border-radius: 6px;
+      background: #fff0f0;
+      border: 1px solid #f5c6c6;
+      color: #c0392b;
+      font-size: .9rem;
+      display: none;
+    }
+
+    .loading-indicator {
+      margin-top: 1rem;
+      font-size: .85rem;
+      color: #666;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Encurtador de URL</h1>
+
+    <form id="shorten-form" novalidate>
+      <label for="url-input">URL longa</label>
+      <div class="input-row">
+        <input
+          id="url-input"
+          type="url"
+          name="url"
+          placeholder="https://exemplo.com/caminho/muito/longo"
+          autocomplete="off"
+          required
+        />
+        <button type="submit" id="submit-btn">Encurtar</button>
+      </div>
+    </form>
+
+    <p class="loading-indicator" id="loading-indicator" aria-live="polite">
+      Aguarde...
+    </p>
+
+    <div class="result-box" id="result-box" aria-live="polite">
+      <div class="result-label">URL encurtada</div>
+      <div class="result-code" id="result-code"></div>
+      <div class="result-short-url">
+        <a id="result-link" href="#" target="_blank" rel="noopener noreferrer"></a>
+      </div>
+    </div>
+
+    <div class="error-box" id="error-box" aria-live="polite"></div>
+  </div>
+
+  <script>
+    (function () {
+      var form       = document.getElementById('shorten-form');
+      var urlInput   = document.getElementById('url-input');
+      var submitBtn  = document.getElementById('submit-btn');
+      var loading    = document.getElementById('loading-indicator');
+      var resultBox  = document.getElementById('result-box');
+      var resultCode = document.getElementById('result-code');
+      var resultLink = document.getElementById('result-link');
+      var errorBox   = document.getElementById('error-box');
+
+      function resetFeedback() {
+        resultBox.style.display = 'none';
+        errorBox.style.display  = 'none';
+        loading.style.display   = 'none';
+        resultCode.textContent  = '';
+        resultLink.textContent  = '';
+        resultLink.href         = '#';
+        errorBox.textContent    = '';
+      }
+
+      function setLoading(active) {
+        submitBtn.disabled     = active;
+        loading.style.display  = active ? 'block' : 'none';
+      }
+
+      function showSuccess(data) {
+        resultCode.textContent  = data.codigo;
+        resultLink.textContent  = data.url_curta;
+        resultLink.href         = data.url_curta;
+        resultBox.style.display = 'block';
+      }
+
+      function errorMessage(motivo) {
+        if (motivo === 'esquema_invalido') {
+          return 'Apenas URLs com esquema http ou https sao aceitas.';
+        }
+        if (motivo === 'url_malformada') {
+          return 'A URL informada e invalida ou malformada.';
+        }
+        return 'Ocorreu um erro inesperado. Tente novamente.';
+      }
+
+      function showError(motivo) {
+        errorBox.textContent   = errorMessage(motivo);
+        errorBox.style.display = 'block';
+      }
+
+      form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        resetFeedback();
+        setLoading(true);
+
+        fetch('/encurtar', {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ url: urlInput.value.trim() }),
+        })
+        .then(function (response) {
+          return response.json().then(function (data) {
+            return { ok: response.ok, data: data };
+          });
+        })
+        .then(function (result) {
+          if (result.ok) {
+            showSuccess(result.data);
+          } else {
+            showError(result.data.motivo || '');
+          }
+        })
+        .catch(function () {
+          showError('');
+        })
+        .finally(function () {
+          setLoading(false);
+        });
+      });
+    }());
+  </script>
+</body>
+</html>
