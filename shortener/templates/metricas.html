@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consulta de Métricas — URL Shortener</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f5f7fa;
+      color: #1a1a2e;
+      min-height: 100vh;
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      padding: 3rem 1rem;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 24px rgba(0,0,0,.08);
+      padding: 2rem 2.5rem;
+      width: 100%;
+      max-width: 560px;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      margin-bottom: 0.4rem;
+      color: #0d1b2a;
+    }
+
+    .subtitle {
+      font-size: 0.9rem;
+      color: #666;
+      margin-bottom: 1.8rem;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 0.6rem;
+    }
+
+    #campo-codigo {
+      flex: 1;
+      padding: 0.6rem 0.9rem;
+      border: 2px solid #d1d9e6;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: border-color .2s;
+      outline: none;
+    }
+
+    #campo-codigo:focus { border-color: #4f6ef7; }
+    #campo-codigo.erro  { border-color: #e53e3e; }
+
+    #btn-consultar {
+      padding: 0.6rem 1.2rem;
+      background: #4f6ef7;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background .2s, opacity .2s;
+    }
+
+    #btn-consultar:hover:not(:disabled) { background: #3b57e0; }
+    #btn-consultar:disabled { opacity: .55; cursor: not-allowed; }
+
+    /* Validation hint */
+    #hint-vazio {
+      font-size: 0.82rem;
+      color: #e53e3e;
+      margin-top: 0.35rem;
+      min-height: 1.1em;
+    }
+
+    /* Status area */
+    #status {
+      margin-top: 1.6rem;
+    }
+
+    /* Loading */
+    .loading {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      color: #555;
+      font-size: 0.95rem;
+    }
+
+    .spinner {
+      width: 18px; height: 18px;
+      border: 3px solid #d1d9e6;
+      border-top-color: #4f6ef7;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Result panels */
+    .panel {
+      border-radius: 10px;
+      padding: 1.2rem 1.4rem;
+    }
+
+    .panel-success {
+      background: #f0fff4;
+      border: 1px solid #9ae6b4;
+    }
+
+    .panel-zero {
+      background: #fffbeb;
+      border: 1px solid #f6e05e;
+    }
+
+    .panel-erro {
+      background: #fff5f5;
+      border: 1px solid #fc8181;
+    }
+
+    .panel-header {
+      font-weight: 700;
+      font-size: 1rem;
+      margin-bottom: 0.6rem;
+    }
+
+    .panel-success .panel-header { color: #276749; }
+    .panel-zero    .panel-header { color: #744210; }
+    .panel-erro    .panel-header { color: #9b2c2c; }
+
+    .stat {
+      font-size: 2rem;
+      font-weight: 800;
+      line-height: 1;
+      margin: 0.4rem 0 0.8rem;
+    }
+
+    .panel-success .stat { color: #276749; }
+    .panel-zero    .stat { color: #b7791f; }
+
+    .stat-label {
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: #666;
+    }
+
+    /* Access log list */
+    .access-list {
+      list-style: none;
+      margin-top: 0.8rem;
+      padding-top: 0.8rem;
+      border-top: 1px solid rgba(0,0,0,.08);
+      max-height: 220px;
+      overflow-y: auto;
+    }
+
+    .access-list li {
+      font-size: 0.87rem;
+      color: #444;
+      padding: 0.25rem 0;
+      border-bottom: 1px dashed #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .access-list li:last-child { border-bottom: none; }
+
+    .access-list li::before {
+      content: "↩";
+      color: #4f6ef7;
+      font-size: 0.8rem;
+    }
+
+    .empty-hint {
+      font-size: 0.87rem;
+      color: #666;
+      margin-top: 0.4rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>📊 Consulta de Métricas</h1>
+    <p class="subtitle">Informe o código curto para ver quantos cliques ele recebeu.</p>
+
+    <div class="input-row">
+      <input
+        id="campo-codigo"
+        type="text"
+        placeholder="ex.: abc123"
+        autocomplete="off"
+        aria-label="Código curto"
+        aria-describedby="hint-vazio"
+      />
+      <button id="btn-consultar">Consultar</button>
+    </div>
+    <div id="hint-vazio" role="alert" aria-live="polite"></div>
+
+    <div id="status" role="region" aria-live="polite" aria-label="Resultado da consulta"></div>
+  </div>
+
+  <script>
+    "use strict";
+
+    const campoEl  = document.getElementById("campo-codigo");
+    const btnEl    = document.getElementById("btn-consultar");
+    const hintEl   = document.getElementById("hint-vazio");
+    const statusEl = document.getElementById("status");
+
+    /* ── helpers ── */
+
+    function setLoading() {
+      statusEl.innerHTML = `
+        <div class="loading" data-testid="loading">
+          <div class="spinner"></div>
+          <span>Consultando métricas…</span>
+        </div>`;
+      btnEl.disabled = true;
+    }
+
+    function clearStatus() {
+      statusEl.innerHTML = "";
+    }
+
+    function showSuccess(data) {
+      const { codigo, total_cliques, dados_acesso } = data;
+
+      let logHtml = "";
+      if (dados_acesso.length > 0) {
+        const items = dados_acesso
+          .map(d => `<li>${formatDate(d.acessado_em)}</li>`)
+          .join("");
+        logHtml = `<ul class="access-list" aria-label="Histórico de acessos">${items}</ul>`;
+      }
+
+      statusEl.innerHTML = `
+        <div class="panel panel-success" data-testid="panel-success">
+          <div class="panel-header">✅ Código: <code>${escHtml(codigo)}</code></div>
+          <div class="stat-label">Total de cliques</div>
+          <div class="stat" data-testid="total-cliques">${total_cliques}</div>
+          ${logHtml}
+        </div>`;
+    }
+
+    function showZeroAcessos(data) {
+      const { codigo } = data;
+      statusEl.innerHTML = `
+        <div class="panel panel-zero" data-testid="panel-zero">
+          <div class="panel-header">🔎 Código: <code>${escHtml(codigo)}</code></div>
+          <div class="stat-label">Total de cliques</div>
+          <div class="stat" data-testid="total-cliques">0</div>
+          <p class="empty-hint">Ainda não há dados de acesso para este código.</p>
+        </div>`;
+    }
+
+    function showNaoEncontrado() {
+      statusEl.innerHTML = `
+        <div class="panel panel-erro" data-testid="panel-nao-encontrado">
+          <div class="panel-header">❌ Código não encontrado</div>
+          <p class="empty-hint">O código informado não existe no sistema. Verifique e tente novamente.</p>
+        </div>`;
+    }
+
+    function showErroGenerico(msg) {
+      statusEl.innerHTML = `
+        <div class="panel panel-erro" data-testid="panel-erro">
+          <div class="panel-header">⚠️ Erro ao consultar</div>
+          <p class="empty-hint">${escHtml(msg)}</p>
+        </div>`;
+    }
+
+    function setHintVazio(msg) {
+      hintEl.textContent = msg;
+      campoEl.classList.toggle("erro", !!msg);
+    }
+
+    function escHtml(str) {
+      return str
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function formatDate(iso) {
+      try {
+        return new Date(iso).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" });
+      } catch {
+        return iso;
+      }
+    }
+
+    /* ── consulta ── */
+
+    async function consultar() {
+      const codigo = campoEl.value.trim();
+
+      /* Cenário D — entrada inválida (campo vazio) */
+      if (!codigo) {
+        setHintVazio("Informe um código válido antes de consultar.");
+        campoEl.focus();
+        return;
+      }
+
+      setHintVazio("");    // limpa hint anterior
+      clearStatus();       // Cenário E — isolamento: descarta resultado anterior
+      setLoading();
+
+      try {
+        const resp = await fetch(`/metricas/${encodeURIComponent(codigo)}`);
+
+        if (resp.ok) {
+          const data = await resp.json();
+
+          if (data.total_cliques === 0) {
+            /* Cenário B — zero acessos */
+            showZeroAcessos(data);
+          } else {
+            /* Cenário A — dados presentes */
+            showSuccess(data);
+          }
+
+        } else if (resp.status === 404) {
+          /* Cenário C — código não encontrado */
+          showNaoEncontrado();
+
+        } else {
+          const body = await resp.json().catch(() => ({}));
+          const msg  = body?.detail?.mensagem ?? "Ocorreu um erro inesperado.";
+          showErroGenerico(msg);
+        }
+
+      } catch (err) {
+        showErroGenerico("Não foi possível conectar ao servidor.");
+      } finally {
+        btnEl.disabled = false;
+      }
+    }
+
+    /* ── eventos ── */
+
+    btnEl.addEventListener("click", consultar);
+
+    campoEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") consultar();
+    });
+
+    campoEl.addEventListener("input", () => {
+      /* limpa hint de validação ao digitar */
+      if (campoEl.value.trim()) setHintVazio("");
+    });
+  </script>
+</body>
+</html>
