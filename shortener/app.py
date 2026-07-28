@@ -3,6 +3,7 @@
 import os
 
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from shortener import codegen, storage
@@ -49,3 +50,19 @@ def shorten(body: ShortenRequest) -> ShortenResponse:
 
     short_url = f"{BASE_URL.rstrip('/')}/{code}"
     return ShortenResponse(code=code, short_url=short_url)
+
+
+@app.get("/{code}", status_code=302)
+def redirect(code: str) -> RedirectResponse:
+    """Resolve a short code and redirect to the original URL.
+
+    - Returns **302** with ``Location`` header set to the original URL.
+    - Returns **404** if *code* is not found.
+    - Increments ``access_count`` on every successful resolution.
+    """
+    url = storage.get(code)
+    if url is None:
+        raise HTTPException(status_code=404, detail="Short code not found")
+
+    storage.increment_access_count(code)
+    return RedirectResponse(url=url, status_code=302)
