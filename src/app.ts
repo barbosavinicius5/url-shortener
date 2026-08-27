@@ -1,17 +1,19 @@
-import express, { ErrorRequestHandler } from 'express';
-import { createShortenRouter } from './routes/shorten';
-import { DEFAULT_PORT, UrlShortener } from './services/url-shortener';
-import { UrlStore } from './store/url-store';
+import express, { ErrorRequestHandler, Express } from 'express';
+import { InMemoryUrlStore } from './store/in-memory-url.store';
+import { createShorteningRouter } from './routes/shortening.routes';
+import { ShorteningService } from './services/shortening.service';
 
-export function createApp(store = new UrlStore(), port = DEFAULT_PORT): express.Express {
+export function createApp(port: number, store: InMemoryUrlStore = new InMemoryUrlStore()): Express {
   const app = express();
+  const service = new ShorteningService(store);
   app.use(express.json());
-  app.use(createShortenRouter(new UrlShortener(store, port)));
-  const jsonErrorHandler: ErrorRequestHandler = (_error, _req, res, _next) => {
-    res.status(400).json({ error: 'invalid JSON body' });
+  app.use(createShorteningRouter(service, port));
+  const errorHandler: ErrorRequestHandler = (error, _req, res, _next) => {
+    const message = error instanceof Error ? error.message : 'Invalid request body';
+    res.status(400).json({ error: message || 'Invalid request body' });
   };
-  app.use(jsonErrorHandler);
+  app.use(errorHandler);
   return app;
 }
 
-export const app = createApp();
+export const app = createApp(3000);

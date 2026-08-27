@@ -1,51 +1,42 @@
 # URL Shortener
 
-Minimal HTTP API for creating in-memory short URLs, redirecting to originals, and reading hit statistics.
+API HTTP mínima para criar URLs curtas, redirecionar acessos e consultar estatísticas. Os dados ficam somente em memória e são perdidos quando o processo reinicia.
 
-## Requirements and setup
+## Instalação e execução
 
-Requires Node.js 20. Install dependencies reproducibly with:
+Requer Node.js 20 ou superior.
 
-```sh
-npm ci
-# or: npm install
-```
-
-Run the development server with the default port 3000 (or set `PORT` to an integer from 1 to 65535):
-
-```sh
+```bash
+npm install
+npm run build
 npm start
-PORT=4310 npm start
 ```
 
-Data is stored only in memory and is lost when the process restarts.
+A porta padrão é `3000`. Configure outra porta com `PORT` (entre 1 e 65535):
 
-## API
+```bash
+PORT=4000 npm start
+```
 
-Create a short URL:
+## Endpoints
 
-```sh
+Criar um encurtamento:
+
+```bash
 curl -X POST http://localhost:3000/shorten \
   -H 'Content-Type: application/json' \
   -d '{"url":"https://example.com/page"}'
 ```
 
-Redirect (returns HTTP 302):
+Retorna `201` com `code` e `shortUrl`. Somente URLs `http` e `https` são aceitas.
 
-```sh
-curl -i http://localhost:3000/abc123
-```
+- `GET /:code` responde `302` e redireciona para a URL original, incrementando `hits`.
+- `GET /:code/stats` responde `200` com `{ "code", "url", "hits" }`, sem incrementar o contador.
+- Códigos inexistentes retornam `404`; entradas inválidas retornam `400` com `{ "error": "..." }`.
 
-Read statistics:
+## Testes
 
-```sh
-curl http://localhost:3000/abc123/stats
-```
-
-## Checks
-
-```sh
+```bash
 npm run typecheck
-npm run build
 npm test
 ```

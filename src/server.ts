@@ -1,23 +1,22 @@
-import { app } from './app';
-import { DEFAULT_PORT } from './services/url-shortener';
+import { app, createApp } from './app';
+import { InMemoryUrlStore } from './store/in-memory-url.store';
 
-export function resolvePort(value: string | undefined): number {
-  if (value === undefined || value.trim() === '') return DEFAULT_PORT;
-  if (!/^\d+$/.test(value)) throw new Error('PORT must be an integer between 1 and 65535');
-  const port = Number(value);
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new Error('PORT must be an integer between 1 and 65535');
-  }
-  return port;
+export const DEFAULT_PORT = 3000;
+
+export function resolvePort(value: string | undefined = process.env.PORT): number {
+  if (!value) return DEFAULT_PORT;
+  const port = Number.parseInt(value, 10);
+  return Number.isInteger(port) && port >= 1 && port <= 65535 && String(port) === value.trim()
+    ? port
+    : DEFAULT_PORT;
 }
 
 if (require.main === module) {
-  const effectivePort = resolvePort(process.env.PORT);
-  const server = app.listen(effectivePort, () => {
-    console.log(`URL shortener listening on port ${effectivePort}`);
-  });
-  server.on('error', (error) => {
-    console.error('Unable to start server:', error);
-    process.exitCode = 1;
+  const port = resolvePort();
+  const serverApp = createApp(port, new InMemoryUrlStore());
+  serverApp.listen(port, () => {
+    console.log(`URL shortener listening on port ${port}`);
   });
 }
+
+export { app };
