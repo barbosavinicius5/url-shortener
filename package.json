@@ -1,0 +1,27 @@
+{
+  "name": "url-shortener",
+  "version": "1.0.0",
+  "private": true,
+  "description": "In-memory HTTP URL shortener API",
+  "main": "dist/src/server.js",
+  "engines": { "node": ">=20 <21" },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "node dist/src/server.js",
+    "dev": "tsx src/server.ts"
+  },
+  "dependencies": {
+    "express": "4.21.2"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.3",
+    "@types/node": "20.17.30",
+    "@types/supertest": "6.0.3",
+    "supertest": "7.1.1",
+    "tsx": "4.19.3",
+    "typescript": "5.8.3",
+    "vitest": "2.1.9"
+  }
+}
