@@ -1,0 +1,25 @@
+{
+  "name": "url-shortener",
+  "version": "1.0.0",
+  "description": "URL shortening HTTP API",
+  "type": "module",
+  "engines": {
+    "node": ">=20 <21"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "express": "4.21.x"
+  },
+  "devDependencies": {
+    "@types/express": "4.17.x",
+    "@types/node": "22.x",
+    "@types/supertest": "6.0.x",
+    "supertest": "7.x",
+    "typescript": "5.7.x",
+    "vitest": "2.1.x"
+  }
+}
