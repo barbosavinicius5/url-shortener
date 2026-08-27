@@ -1,42 +1,40 @@
-# URL Shortener
+# URL Shortener API
 
-API HTTP mínima para criar URLs curtas, redirecionar acessos e consultar estatísticas. Os dados ficam somente em memória e são perdidos quando o processo reinicia.
+API HTTP mínima para criar códigos curtos, redirecionar para URLs originais e consultar estatísticas. Os registros vivem apenas em memória e são perdidos quando o processo reinicia.
 
-## Instalação e execução
+## Requisitos e instalação
 
-Requer Node.js 20 ou superior.
+É necessário Node.js 20 e npm. Instale as dependências com:
 
 ```bash
-npm install
+npm ci
+```
+
+## Execução
+
+```bash
 npm run build
 npm start
 ```
 
-A porta padrão é `3000`. Configure outra porta com `PORT` (entre 1 e 65535):
+A porta padrão é `3000`. Para configurar outra porta, use `PORT`:
 
 ```bash
-PORT=4000 npm start
+PORT=8080 npm start
 ```
 
 ## Endpoints
 
-Criar um encurtamento:
+- `POST /shorten` com `{ "url": "https://example.com/page" }` cria um código e retorna `201` com `code` e `shortUrl`.
+- `GET /:code` retorna `302` para a URL original e incrementa `hits`.
+- `GET /:code/stats` retorna `200` com `{ code, url, hits }`, sem incrementar acessos.
 
-```bash
-curl -X POST http://localhost:3000/shorten \
-  -H 'Content-Type: application/json' \
-  -d '{"url":"https://example.com/page"}'
-```
+URLs devem usar `http://` ou `https://`. Entradas inválidas, códigos inexistentes e rotas desconhecidas retornam JSON com `{ "error": "..." }`.
 
-Retorna `201` com `code` e `shortUrl`. Somente URLs `http` e `https` são aceitas.
-
-- `GET /:code` responde `302` e redireciona para a URL original, incrementando `hits`.
-- `GET /:code/stats` responde `200` com `{ "code", "url", "hits" }`, sem incrementar o contador.
-- Códigos inexistentes retornam `404`; entradas inválidas retornam `400` com `{ "error": "..." }`.
-
-## Testes
+## Testes e gates
 
 ```bash
 npm run typecheck
+npm run build
 npm test
 ```
