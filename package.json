@@ -1,0 +1,27 @@
+{
+  "name": "url-shortener",
+  "version": "1.0.0",
+  "description": "HTTP API for URL shortening and redirection",
+  "main": "dist/src/server.js",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "start": "node dist/src/server.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "5.0.3",
+    "@types/node": "20.17.56",
+    "@types/supertest": "6.0.3",
+    "supertest": "7.1.0",
+    "typescript": "5.8.3",
+    "vitest": "3.2.4"
+  }
+}
