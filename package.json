@@ -1,0 +1,27 @@
+{
+  "name": "url-shortener",
+  "version": "1.0.0",
+  "description": "HTTP API to shorten URLs, redirect short codes and expose basic hit stats (in-memory).",
+  "main": "dist/src/server.js",
+  "engines": {
+    "node": ">=20 <21"
+  },
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "start": "node dist/src/server.js"
+  },
+  "dependencies": {
+    "express": "^5.1.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.15.0",
+    "@types/supertest": "^7.2.1",
+    "supertest": "^7.1.0",
+    "typescript": "~5.8.3",
+    "vitest": "~3.2.4"
+  },
+  "license": "MIT"
+}
